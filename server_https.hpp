@@ -43,7 +43,7 @@ namespace SimpleWeb {
                 session_id_context=std::to_string(config.port)+':';
                 session_id_context.append(config.address.rbegin(), config.address.rend());
                 SSL_CTX_set_session_id_context(context.native_handle(), reinterpret_cast<const unsigned char*>(session_id_context.data()),
-                                               std::min<size_t>(session_id_context.size(), SSL_MAX_SSL_SESSION_ID_LENGTH));
+                                               static_cast<unsigned int>(std::min<size_t>(session_id_context.size(), SSL_MAX_SSL_SESSION_ID_LENGTH)));
             }
             ServerBase::start();
         }
@@ -69,13 +69,13 @@ namespace SimpleWeb {
                     //Set timeout on the following boost::asio::ssl::stream::async_handshake
                     auto timer=get_timeout_timer(socket, config.timeout_request);
                     socket->async_handshake(boost::asio::ssl::stream_base::server, [this, socket, timer]
-                            (const boost::system::error_code& ec) {
+                            (const boost::system::error_code& ec2) {
                         if(timer)
                             timer->cancel();
-                        if(!ec)
+                        if(!ec2)
                             read_request_and_content(socket);
                         else if(on_error)
-                            on_error(std::shared_ptr<Request>(new Request(*socket)), ec);
+                            on_error(std::shared_ptr<Request>(new Request(*socket)), ec2);
                     });
                 }
                 else if(on_error)

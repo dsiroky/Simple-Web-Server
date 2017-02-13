@@ -135,9 +135,9 @@ namespace SimpleWeb {
             /// Number of threads that the server will use when start() is called. Defaults to 1 thread.
             size_t thread_pool_size=1;
             /// Timeout on request handling. Defaults to 5 seconds.
-            size_t timeout_request=5;
+            long timeout_request=5;
             /// Timeout on content handling. Defaults to 300 seconds.
-            size_t timeout_content=300;
+            long timeout_content=300;
             /// IPv4 address in dotted decimal form or IPv6 address in hexadecimal notation.
             /// If empty, the address will be any address.
             std::string address;
@@ -242,8 +242,8 @@ namespace SimpleWeb {
             timer->expires_from_now(boost::posix_time::seconds(seconds));
             timer->async_wait([socket](const boost::system::error_code& ec){
                 if(!ec) {
-                    boost::system::error_code ec;
-                    socket->lowest_layer().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+                    boost::system::error_code ec2;
+                    socket->lowest_layer().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec2);
                     socket->lowest_layer().close();
                 }
             });
@@ -279,24 +279,24 @@ namespace SimpleWeb {
                         try {
                             content_length=stoull(it->second);
                         }
-                        catch(const std::exception &e) {
+                        catch(const std::exception &) {
                             if(on_error)
                                 on_error(request, boost::system::error_code(boost::system::errc::protocol_error, boost::system::generic_category()));
                             return;
                         }
                         if(content_length>num_additional_bytes) {
                             //Set timeout on the following boost::asio::async-read or write function
-                            auto timer=this->get_timeout_timer(socket, config.timeout_content);
+                            auto timer2=this->get_timeout_timer(socket, config.timeout_content);
                             boost::asio::async_read(*socket, request->streambuf,
                                     boost::asio::transfer_exactly(content_length-num_additional_bytes),
-                                    [this, socket, request, timer]
-                                    (const boost::system::error_code& ec, size_t /*bytes_transferred*/) {
-                                if(timer)
-                                    timer->cancel();
-                                if(!ec)
+                                    [this, socket, request, timer2]
+                                    (const boost::system::error_code& ec2, size_t /*bytes_transferred*/) {
+                                if(timer2)
+                                    timer2->cancel();
+                                if(!ec2)
                                     this->find_resource(socket, request);
                                 else if(on_error)
-                                    on_error(request, ec);
+                                    on_error(request, ec2);
                             });
                         }
                         else
@@ -385,12 +385,12 @@ namespace SimpleWeb {
             auto timer=this->get_timeout_timer(socket, config.timeout_content);
 
             auto response=std::shared_ptr<Response>(new Response(socket), [this, request, timer](Response *response_ptr) {
-                auto response=std::shared_ptr<Response>(response_ptr);
-                this->send(response, [this, response, request, timer](const boost::system::error_code& ec) {
+                auto response2=std::shared_ptr<Response>(response_ptr);
+                this->send(response2, [this, response2, request, timer](const boost::system::error_code& ec) {
                     if(timer)
                         timer->cancel();
                     if(!ec) {
-                        if (response->close_connection_after_response)
+                        if (response2->close_connection_after_response)
                             return;
 
                         auto range=request->header.equal_range("Connection");
@@ -399,7 +399,7 @@ namespace SimpleWeb {
                                 return;
                         }
                         if(request->http_version >= "1.1")
-                            this->read_request_and_content(response->socket);
+                            this->read_request_and_content(response2->socket);
                     }
                     else if(on_error)
                         on_error(request, ec);
@@ -409,7 +409,7 @@ namespace SimpleWeb {
             try {
                 resource_function(response, request);
             }
-            catch(const std::exception &e) {
+            catch(const std::exception &) {
                 if(on_error)
                     on_error(request, boost::system::error_code(boost::system::errc::operation_canceled, boost::system::generic_category()));
                 return;
